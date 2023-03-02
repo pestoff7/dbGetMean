@@ -1,3 +1,6 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.*;
 import java.util.Date;
 
@@ -10,13 +13,16 @@ public class DBConnect {
     private static Statement stmt;
     private static ResultSet rs;
     private Date date;
-    private int i = 0;
+    private int countOfSnapshots;
+    private int minutesOfLogCollector;
 
-    public DBConnect(String url, String user, String password, String query) {
+    public DBConnect(String url, String user, String password, String query, int countOfSnapshots, int minutesOfLogCollector) {
         this.url = url;
         this.user = user;
         this.password = password;
         this.query = query;
+        this.countOfSnapshots = countOfSnapshots;
+        this.minutesOfLogCollector = minutesOfLogCollector;
     }
 
     public String getUrl() {
@@ -51,6 +57,25 @@ public class DBConnect {
         this.query = query;
     }
 
+    public int getCountOfSnapshots() {
+        return countOfSnapshots;
+    }
+
+    public void setCountOfSnapshots(int countOfSnapshots) {
+        this.countOfSnapshots = countOfSnapshots;
+    }
+
+    public int getMinutesOfLogCollector() {
+        return minutesOfLogCollector;
+    }
+
+    public void setMinutesOfLogCollector(int minutesOfLogCollector) {
+        this.minutesOfLogCollector = minutesOfLogCollector;
+    }
+
+    public long getThreadSleep(int minutes){
+        return minutes*60L*1000L/(long)getCountOfSnapshots();
+    }
     public void connect(){
         try {
             Class.forName("org.postgresql.Driver");
@@ -64,29 +89,12 @@ public class DBConnect {
         catch (SQLException sqlEx) {
             sqlEx.printStackTrace();
         }
-//        finally {
-//            try {
-//                con.close();
-//            } catch (SQLException se) {
-//                se.printStackTrace();
-//            }
-//
-//            try {
-//                stmt.close();
-//            } catch (SQLException se) {
-//                se.printStackTrace();
-//            }
-//
-//            try {
-//                rs.close();
-//            } catch (SQLException se) {
-//                se.printStackTrace();
-//            }
-//        }
     }
-    public String getTable(){
+    public void getTable() throws IOException {
         StringBuilder executed = new StringBuilder();
         String singleString;
+        int i = 0;
+        BufferedWriter bw = new BufferedWriter(new FileWriter("C:\\Users\\User\\Desktop\\log.csv"));
         try {
             while (true){
                 date = new Date();
@@ -95,9 +103,9 @@ public class DBConnect {
                 while(rs.next()) {
                     executed.append(date.toString()+"|"+rs.getString(4).replace('\n', ' ').replaceAll("\\s\\s", " ")+"|"+rs.getFloat(9)+"\n");
                 }
-                Thread.sleep(1000L);
+                Thread.sleep(getThreadSleep(getMinutesOfLogCollector()));
                 i++;
-                if (i == 5){
+                if (i == this.countOfSnapshots){
                     break;
                 }
             }
@@ -108,8 +116,24 @@ public class DBConnect {
         catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        finally {
+            try {
+                con.close();
+                stmt.close();
+                rs.close();
+            }
+            catch (SQLException e){
+                e.printStackTrace();
+            }
+        }
         singleString = executed.toString();
-        return singleString;
+
+        bw.write("datetime|query|mean\n");
+        bw.write(singleString);
+        if (bw != null){
+            bw.close();
+        }
     }
 }
+
 
